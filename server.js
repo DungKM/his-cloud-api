@@ -1,3 +1,6 @@
+const multer = require("multer");
+const upload = multer({ storage: multer.memoryStorage() });
+
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -40,18 +43,16 @@ app.get("/health", (req, res) => {
 // =======================
 // IMPORT FILE (HIS -> CLOUD)
 // =======================
-app.post("/api/v1/his/import-file", (req, res) => {
+app.post("/api/v1/his/import-file", upload.array("files"), (req, res) => {
   try {
     const {
       maPhieuKham,
       maBenhAn,
       ngayLuuTru,
       trangThaiKySo,
-      daTaoPdf,
-      files
+      daTaoPdf
     } = req.body;
 
-    // validate
     if (!maPhieuKham) {
       return res.status(400).json({ message: "Thiếu maPhieuKham" });
     }
@@ -60,33 +61,30 @@ app.post("/api/v1/his/import-file", (req, res) => {
       return res.status(400).json({ message: "Chưa ký số" });
     }
 
-    if (!daTaoPdf) {
+    if (String(daTaoPdf) !== "true") {
       return res.status(400).json({ message: "Chưa tạo PDF" });
     }
 
-    if (!files || files.length === 0) {
+    if (!req.files || req.files.length === 0) {
       return res.status(400).json({ message: "Không có file" });
     }
 
     const folderPath = buildFolder(maPhieuKham, ngayLuuTru);
     const fullPath = path.join(STORAGE_ROOT, folderPath);
 
-    // tạo folder
     fs.mkdirSync(fullPath, { recursive: true });
 
     let savedFiles = [];
 
-    files.forEach((file) => {
-      if (!file.tenFile.endsWith(".pdf")) return;
+    req.files.forEach((file) => {
+      if (!file.originalname.toLowerCase().endsWith(".pdf")) return;
 
-      const buffer = Buffer.from(file.contentBase64, "base64");
-      const filePath = path.join(fullPath, file.tenFile);
-
-      fs.writeFileSync(filePath, buffer);
+      const filePath = path.join(fullPath, file.originalname);
+      fs.writeFileSync(filePath, file.buffer);
 
       const fileRecord = {
-        id: Date.now().toString(),
-        tenFile: file.tenFile,
+        id: Date.now().toString() + Math.random().toString(36).slice(2, 8),
+        tenFile: file.originalname,
         path: folderPath,
         fullPath: filePath
       };
